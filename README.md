@@ -19,6 +19,10 @@ Cada fase é uma tela de um sistema fictício, com um charter de teste e um temp
 
 São 4 builds e 22 bugs, de erro de texto a falha de segurança. Os nomes e documentos que aparecem no jogo são inventados.
 
+## Testes
+
+O jogo tem uma suíte E2E própria em Cypress: **[caca-bug-e2e](https://github.com/danielnaasson/caca-bug-e2e)**.
+
 ## Tecnologia
 
 Um único `index.html` com HTML, CSS e JavaScript puros, sem build e sem dependências.
