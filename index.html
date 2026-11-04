@@ -1,0 +1,524 @@
+<title>Caça-Bug</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: bancada de teste — app sob teste num frame de navegador à esquerda, pilha de tickets à direita, fundo papel milimetrado */
+:root{
+  --paper:#e9edf4; --grid:rgba(40,60,110,.07); --panel:#ffffff; --ink:#17203a; --muted:#5a6480; --line:#d3d9e6;
+  --accent:#ffb020; --accent-ink:#241800;
+  --crit:#d3304b; --alta:#e0662a; --media:#b98d00; --baixa:#3b7bd6; --ok:#1d9566;
+  --display:'Bricolage Grotesque','Segoe UI',system-ui,sans-serif;
+  --body:'IBM Plex Sans','Segoe UI',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#0e1322; --grid:rgba(140,160,220,.06); --panel:#161d32; --ink:#e6eaf4; --muted:#97a1bc; --line:#29324e;
+  --accent:#ffbb45; --accent-ink:#241800;
+  --crit:#ff5c74; --alta:#ff8a50; --media:#e8c040; --baixa:#6fa5ff; --ok:#3fcf94; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#0e1322; --grid:rgba(140,160,220,.06); --panel:#161d32; --ink:#e6eaf4; --muted:#97a1bc; --line:#29324e;
+  --accent:#ffbb45; --accent-ink:#241800;
+  --crit:#ff5c74; --alta:#ff8a50; --media:#e8c040; --baixa:#6fa5ff; --ok:#3fcf94; color-scheme:dark}
+
+*{box-sizing:border-box}
+html,body{min-height:100%}
+body{background:var(--paper);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5;
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:24px 24px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px 40px}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,[data-hit]:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+
+.top{max-width:1180px;margin:0 auto 14px;display:flex;flex-wrap:wrap;align-items:center;gap:12px 24px}
+.brand{font-family:var(--display);font-weight:800;font-size:28px;letter-spacing:-.02em;display:flex;align-items:center;gap:10px}
+.brand .bugmark{width:30px;height:30px;border-radius:50%;background:var(--accent);position:relative;flex:none}
+.brand .bugmark::before{content:"";position:absolute;inset:7px 13px;background:var(--accent-ink);border-radius:2px}
+.brand .bugmark::after{content:"";position:absolute;left:5px;right:5px;top:14px;height:2px;background:var(--accent-ink)}
+.stats{display:flex;flex-wrap:wrap;gap:8px;margin-left:auto}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:4px 12px;min-width:84px}
+.stat b{display:block;font-family:var(--mono);font-size:18px;font-variant-numeric:tabular-nums;line-height:1.3}
+.stat span{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.stat.warn b{color:var(--crit)}
+
+.lab{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}
+@media (max-width:900px){.lab{grid-template-columns:minmax(0,1fr)}}
+
+.device{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;box-shadow:0 10px 30px -18px rgba(10,20,50,.5)}
+.chrome{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.dots{display:flex;gap:6px}.dots i{width:10px;height:10px;border-radius:50%;background:var(--line)}
+.url{flex:1;min-width:0;font-family:var(--mono);font-size:12px;color:var(--muted);background:var(--paper);border-radius:6px;padding:3px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.build{font-family:var(--mono);font-size:11px;padding:2px 8px;border-radius:4px;background:var(--accent);color:var(--accent-ink);font-weight:600}
+.screen{position:relative;cursor:crosshair}
+.screen.locked{pointer-events:none}
+
+[data-hit]{position:relative;border-radius:4px;transition:box-shadow .12s}
+.screen [data-hit]:hover{box-shadow:0 0 0 2px rgba(255,176,32,.9)}
+[data-hit].found{box-shadow:0 0 0 2px var(--crit)!important}
+[data-hit].missed{box-shadow:0 0 0 2px dashed;outline:2px dashed var(--crit);outline-offset:2px}
+.pin{position:absolute;top:-10px;right:-10px;z-index:3;min-width:22px;height:22px;padding:0 5px;border-radius:11px;background:var(--crit);color:#fff;font:600 12px/22px var(--mono);text-align:center;pointer-events:none;animation:pop .25s ease-out}
+.pin.miss{background:#6b7280}
+@keyframes pop{from{transform:scale(.3)}to{transform:scale(1)}}
+.shake{animation:shake .3s}
+@keyframes shake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+
+.log{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:12px}
+.log h2{font-family:var(--display);font-size:18px;margin:0;display:flex;justify-content:space-between;align-items:baseline}
+.log h2 small{font-family:var(--mono);font-size:12px;color:var(--muted);font-weight:400}
+.charter{font-size:13px;color:var(--muted);border-left:3px solid var(--accent);padding-left:10px}
+.tickets{display:flex;flex-direction:column;gap:8px;max-height:430px;overflow:auto}
+.empty{font-size:13px;color:var(--muted);text-align:center;padding:18px 8px;border:1px dashed var(--line);border-radius:8px}
+.ticket{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;animation:pop .2s}
+.ticket .tid{font-family:var(--mono);font-size:11px;color:var(--muted);display:flex;justify-content:space-between;gap:8px}
+.ticket .tt{font-weight:600;margin-top:2px}
+.ticket .pts{font-family:var(--mono);font-size:11px}
+.sev{display:inline-block;font-family:var(--mono);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding:1px 7px;border-radius:10px;color:#fff}
+.sev.critica{background:var(--crit)}.sev.alta{background:var(--alta)}.sev.media{background:var(--media)}.sev.baixa{background:var(--baixa)}
+.btn-ghost{background:transparent;border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-weight:500}
+.btn-ghost:hover{border-color:var(--ink)}
+.btn-main{background:var(--accent);color:var(--accent-ink);border:0;border-radius:8px;padding:11px 20px;font-weight:600;font-size:15px}
+.btn-main:hover{filter:brightness(1.05)}
+
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:8px;font-size:14px;max-width:min(92vw,460px);z-index:60;box-shadow:0 8px 20px rgba(0,0,0,.3)}
+.toast b{color:var(--accent)}
+
+.overlay{position:fixed;inset:0;background:rgba(10,14,28,.55);display:flex;align-items:center;justify-content:center;z-index:50;
+  padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:24px;max-width:560px;width:100%;max-height:100%;overflow:auto;box-shadow:0 20px 50px -20px rgba(0,0,0,.6)}
+.card h1{font-family:var(--display);font-weight:800;font-size:clamp(34px,7vw,52px);line-height:1;margin:0 0 10px;letter-spacing:-.03em;text-wrap:balance}
+.card h3{font-family:var(--display);font-size:22px;margin:0 0 6px;text-wrap:balance}
+.card p{margin:0 0 12px}
+.eyebrow{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:8px}
+.rules{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:14px;margin:14px 0 18px;padding:12px;border-radius:8px;background:var(--paper)}
+.rules b{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right}
+.sevgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
+.sevbtn{border:2px solid var(--line);background:var(--panel);border-radius:10px;padding:10px;text-align:left}
+.sevbtn:hover{border-color:var(--ink)}
+.sevbtn small{display:block;color:var(--muted);font-size:12px;margin-top:4px;line-height:1.35}
+.verdict{margin-top:14px;padding:12px;border-radius:8px;background:var(--paper);font-size:14px}
+.row-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;justify-content:flex-end}
+.miss-list{display:flex;flex-direction:column;gap:6px;margin:10px 0}
+.miss-list div{font-size:13px;padding:8px 10px;border-radius:8px;border:1px solid var(--line)}
+.bigscore{font-family:var(--display);font-weight:800;font-size:56px;line-height:1;font-variant-numeric:tabular-nums}
+.rank{display:inline-block;font-family:var(--mono);font-weight:600;background:var(--accent);color:var(--accent-ink);padding:4px 10px;border-radius:6px;margin:8px 0 14px}
+.phase-table{width:100%;border-collapse:collapse;font-size:14px;margin:6px 0 4px}
+.phase-table td{padding:6px 4px;border-bottom:1px solid var(--line)}
+.phase-table td:last-child{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* ====== Apps sob teste (cada um com a própria identidade, fixa nos dois temas) ====== */
+.m{color:#1d2433;font-family:var(--body);min-height:440px}
+.m a{color:inherit}
+/* 1 · Banco */
+.m-bank{background:linear-gradient(160deg,#dfe8fb,#f6f8fc);display:flex;align-items:center;justify-content:center;padding:28px 14px}
+.bank-card{background:#fff;border-radius:14px;padding:26px 24px;width:100%;max-width:360px;box-shadow:0 12px 30px -16px rgba(27,58,138,.45);display:flex;flex-direction:column;gap:12px}
+.bank-logo{display:flex;align-items:center;gap:8px;font-weight:700;color:#1b3a8a;font-size:17px;align-self:flex-start;padding:2px}
+.bank-logo i{width:26px;height:26px;border-radius:50% 50% 45% 45%;background:#1b3a8a;position:relative}
+.bank-logo i::after{content:"";position:absolute;left:7px;right:7px;bottom:4px;height:11px;border-radius:50%;background:#fff}
+.m-bank h3{margin:0;font-size:20px;align-self:flex-start;padding:2px}
+.fld{display:flex;flex-direction:column;gap:4px}
+.lbl{font-size:12px;font-weight:600;color:#4a5570;align-self:flex-start;padding:0 2px}
+.inp{border:1px solid #c9d2e3;border-radius:8px;padding:9px 11px;font-size:14px;background:#fbfcfe}
+.m-bank .err{background:#fde8eb;color:#a3203a;font-size:13px;padding:7px 10px;border-radius:6px}
+.bank-row{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px}
+.cbx{display:inline-flex;align-items:center;gap:6px;padding:2px}
+.cbx::before{content:"";width:14px;height:14px;border-radius:3px;background:#1b3a8a;box-shadow:inset 0 0 0 3px #fff;border:1px solid #1b3a8a}
+.m-bank .lnk{color:#1b3a8a;text-decoration:underline;padding:2px}
+.m-bank .cta{background:#1b3a8a;color:#fff;text-align:center;border-radius:8px;padding:11px;font-weight:600}
+.m-bank .small{font-size:13px;color:#4a5570;text-align:center;margin:0;padding:2px}
+.m-bank .foot{font-size:11px;color:#7a849c;text-align:center;margin:0;padding:2px}
+/* 2 · Loja */
+.m-shop{background:#faf6f0;padding:0 0 18px;font-size:14px}
+.shop-top{display:flex;justify-content:space-between;align-items:center;padding:12px 18px;background:#3b2417;color:#f6e7d4;gap:10px;flex-wrap:wrap}
+.shop-top .lg{font-weight:700;letter-spacing:.04em;padding:2px}
+.shop-top .cart{font-size:13px;padding:2px 6px}
+.shop-body{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px;padding:16px 18px}
+@media (max-width:640px){.shop-body{grid-template-columns:minmax(0,1fr)}}
+.shop-body h4{margin:0 0 8px;font-size:16px;padding:2px;align-self:flex-start}
+.item{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:4px 12px;align-items:center;padding:10px 0;border-bottom:1px solid #eadfce}
+.thumb{width:44px;height:44px;border-radius:8px;grid-row:span 2}
+.item .nm{font-weight:600;padding:1px 2px}
+.item .vr{font-size:12px;color:#7a6550;padding:1px 2px}
+.qty{display:inline-flex;align-items:center;gap:8px;border:1px solid #d8c7ae;border-radius:6px;padding:2px 8px;font-family:var(--mono);font-size:13px;justify-self:start}
+.lt{font-weight:600;text-align:right;font-variant-numeric:tabular-nums;padding:1px 3px}
+.unit{font-size:12px;color:#7a6550;text-align:right;padding:1px 3px}
+.rm{font-size:12px;color:#9a5a2a;text-decoration:underline;padding:1px 2px;justify-self:start}
+.sumbox{background:#fff;border:1px solid #eadfce;border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:8px}
+.sl{display:flex;justify-content:space-between;gap:10px;font-variant-numeric:tabular-nums;padding:2px}
+.sl.tot{font-weight:700;font-size:16px;border-top:1px solid #eadfce;padding-top:8px}
+.coupon{font-size:12px;background:#eef6ea;color:#2f6b2a;padding:5px 8px;border-radius:6px}
+.ship{font-size:12px;color:#6b5540;padding:2px}
+.buy{background:#3b2417;color:#f6e7d4;border-radius:8px;padding:11px 14px;font-weight:600;text-align:center;white-space:nowrap;overflow:hidden;width:132px;align-self:center;position:relative}
+.buy span{display:inline-block;width:96px;overflow:hidden;text-overflow:clip;vertical-align:bottom}
+.pix{font-size:12px;color:#2f6b2a;text-align:center;padding:2px}
+.cont{font-size:13px;text-align:center;text-decoration:underline;color:#6b5540;padding:2px}
+/* 3 · Clínica */
+.m-clinic{background:#f2f7f6;font-size:14px}
+.cl-top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 18px;background:#fff;border-bottom:1px solid #d7e6e3}
+.cl-top .lg{font-weight:700;color:#0e7466;padding:2px}
+.cl-top .hi{font-size:13px;color:#3a5550;padding:2px 4px}
+.cl-body{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px;padding:16px 18px}
+.cl-card{background:#fff;border:1px solid #d7e6e3;border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.cl-card h4{margin:0;font-size:16px;color:#173a35;padding:2px;align-self:flex-start}
+.m-clinic .inp{border-color:#c5d9d5;background:#fbfdfd}
+.hint{font-size:12px;padding:1px 2px;align-self:flex-start}
+.hint.okc{color:#1f8a4c}.hint.mut{color:#5d7570}
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cl-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.cl-btn{border-radius:8px;padding:9px 16px;font-weight:600;font-size:13px}
+.cl-btn.pri{background:#0e7466;color:#fff}.cl-btn.sec{border:1px solid #c5d9d5;color:#173a35}
+.pt{display:flex;flex-direction:column;gap:1px;padding:8px 10px;border-radius:8px;background:#f6faf9;font-size:13px}
+.pt b{color:#173a35}.pt span{color:#5d7570;font-size:12px}
+.pag{display:flex;justify-content:space-between;font-size:12px;color:#5d7570;gap:8px;flex-wrap:wrap}
+.pag span{padding:2px}
+/* 4 · Restaurante */
+.m-rest{background:#1c1714;color:#f2e9e1;font-size:14px;padding-bottom:6px}
+.rs-top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 18px;border-bottom:1px solid #3a2f28}
+.rs-top .lg{font-weight:800;color:#ff8a3d;letter-spacing:.03em;padding:2px}
+.bell{font-size:12px;background:#2c241f;border-radius:20px;padding:5px 12px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;padding:14px 18px}
+.kpi{background:#2a221d;border-radius:10px;padding:10px 12px}
+.kpi span{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#b8a597}
+.kpi b{display:block;font-size:20px;font-variant-numeric:tabular-nums}
+.bar{height:6px;background:#3d332c;border-radius:3px;margin-top:6px;overflow:hidden}
+.bar i{display:block;height:100%;width:30%;background:#ff8a3d}
+.orders{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;padding:0 18px 14px}
+.ord{background:#2a221d;border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px}
+.ord .oh{display:flex;justify-content:space-between;gap:8px;font-size:13px;color:#d9c8bb;flex-wrap:wrap}
+.ord .oh b{color:#fff}
+.ord .its{padding:2px}
+.ord .obs{font-size:12px;color:#c9b6a7;font-style:italic;padding:2px}
+.ord .acts{display:flex;gap:8px}
+.ob{flex:1;text-align:center;border-radius:8px;padding:8px;font-weight:700;font-size:13px}
+.ob.red{background:#d33b3b;color:#fff}.ob.green{background:#2f9d5a;color:#fff}
+.pill{align-self:flex-start;font-size:11px;font-weight:700;background:#3c5d8a;color:#fff;border-radius:10px;padding:2px 9px}
+.rs-foot{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:8px 18px;font-size:11px;color:#8f7d70;font-family:var(--mono)}
+.rs-foot span{padding:2px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<header class="top">
+  <div class="brand"><span class="bugmark" aria-hidden="true"></span>Caça-Bug</div>
+  <div class="stats">
+    <div class="stat"><b id="sFase">1/4</b><span>Fase</span></div>
+    <div class="stat" id="sTempoBox"><b id="sTempo">0:00</b><span>Tempo</span></div>
+    <div class="stat"><b id="sBugs">0/0</b><span>Bugs</span></div>
+    <div class="stat"><b id="sPts">0</b><span>Pontos</span></div>
+  </div>
+</header>
+
+<main class="lab">
+  <section class="device" aria-label="Aplicação sob teste">
+    <div class="chrome">
+      <div class="dots" aria-hidden="true"><i></i><i></i><i></i></div>
+      <div class="url" id="url">homolog</div>
+      <span class="build" id="build">build</span>
+    </div>
+    <div class="screen locked" id="screen"></div>
+  </section>
+  <aside class="log">
+    <h2>Relatórios abertos <small id="logCount">0</small></h2>
+    <div class="charter" id="charter"></div>
+    <div class="tickets" id="tickets"><div class="empty">Nenhum bug reportado ainda. Clique no que parecer errado na tela.</div></div>
+    <button class="btn-ghost" id="btnEnd" type="button">Encerrar ciclo de teste</button>
+  </aside>
+</main>
+
+<div class="overlay" id="ov"><div class="card" id="ovCard"></div></div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+const SEV = {
+  critica:{n:'Crítica',d:'Segurança, perda de dados ou bloqueio total.'},
+  alta:{n:'Alta',d:'Função principal errada, prejuízo direto.'},
+  media:{n:'Média',d:'Erro visível com contorno possível.'},
+  baixa:{n:'Baixa',d:'Cosmético, texto, alinhamento.'}
+};
+const SEV_ORDER = ['critica','alta','media','baixa'];
+
+const LEVELS = [
+{
+  name:'Login do Banco Pinguim', url:'https://homolog.bancopinguim.test/login', build:'v3.8.0-rc1', time:75,
+  charter:'Explorar a tela de login antes do release. Procure falhas de segurança, texto e mensagens.',
+  html:`<div class="m m-bank"><div class="bank-card">
+    <div class="bank-logo" data-hit="logo"><i></i>Banco Pinguim</div>
+    <h3 data-hit="titulo">Acesse sua conta</h3>
+    <div class="fld"><span class="lbl" data-hit="lbl-email">E-mail</span><div class="inp" data-hit="email">ana.souza@email.com</div></div>
+    <div class="fld"><span class="lbl" data-hit="lbl-senha">Senha</span><div class="inp" data-hit="senha">Pinguim@2026</div></div>
+    <div class="err" data-hit="err">Erro: undefined</div>
+    <div class="bank-row"><span class="cbx" data-hit="lembrar">Lembrar de mim</span><span class="lnk" data-hit="esqueci">Esqueci minha senha</span></div>
+    <div class="cta" data-hit="entrar">Entar</div>
+    <p class="small" data-hit="criar">Não tem conta? <u>Abra a sua</u></p>
+    <p class="foot" data-hit="sessao">Por segurança, sua sessão expira em -3 minutos.</p>
+    <p class="foot" data-hit="copy">© 2026 Banco Pinguim S.A.</p>
+  </div></div>`,
+  bugs:{
+    senha:{t:'Senha exibida em texto puro',sev:'critica',d:'Quem estiver ao lado lê a senha. O campo deveria mascarar os caracteres e oferecer um botão de mostrar.'},
+    err:{t:'Mensagem de erro técnica e sem contexto',sev:'media',d:'"undefined" não diz o que aconteceu nem o que fazer. E aparece antes de qualquer tentativa de login.'},
+    entrar:{t:'Erro de digitação no botão: "Entar"',sev:'baixa',d:'Não impede o uso, mas é o botão principal da tela e passa descuido.'},
+    sessao:{t:'Tempo de sessão negativo',sev:'media',d:'"Expira em -3 minutos": a contagem de expiração está invertida ou usa o fuso errado.'}
+  }
+},
+{
+  name:'Carrinho da Grão Torrefação', url:'https://homolog.graotorrefacao.test/carrinho', build:'v2.14.3', time:90,
+  charter:'Validar o carrinho e o resumo do pedido. Confira as contas, as datas e os campos de quantidade.',
+  html:`<div class="m m-shop">
+    <div class="shop-top"><span class="lg" data-hit="logo">GRÃO · TORREFAÇÃO</span><span class="cart" data-hit="contador">Carrinho (3)</span></div>
+    <div class="shop-body">
+      <div>
+        <h4 data-hit="titulo">Seu carrinho</h4>
+        <div class="item"><div class="thumb" style="background:#6b4226"></div>
+          <span class="nm" data-hit="nome1">Café Especial Mantiqueira 250g</span><span class="lt" data-hit="linha1">R$ 89,80</span>
+          <span class="qty" data-hit="qtd1">− 2 +</span><span class="unit" data-hit="unit1">R$ 49,90 un.</span></div>
+        <div class="item"><div class="thumb" style="background:#a6a29a"></div>
+          <span class="nm" data-hit="nome2">Moedor Manual Cerâmico</span><span class="lt" data-hit="qtd2">−R$ 159,00</span>
+          <span class="qty" data-hit="qtd2">− -1 +</span><span class="unit" data-hit="unit2">R$ 159,00 un.</span></div>
+        <div class="item"><div class="thumb" style="background:#e9dcc3"></div>
+          <span class="nm" data-hit="nome3">Filtro de papel nº 103 · 100 un.</span><span class="lt" data-hit="linha3">R$ 12,90</span>
+          <span class="qty" data-hit="qtd3">− 1 +</span><span class="rm" data-hit="remover">Remover</span></div>
+      </div>
+      <div class="sumbox">
+        <h4 data-hit="resumo">Resumo</h4>
+        <div class="sl" data-hit="subtotal"><span>Subtotal</span><span>R$ 102,70</span></div>
+        <div class="coupon" data-hit="cupom">Cupom CAFE10 aplicado · −R$ 10,27</div>
+        <div class="sl" data-hit="frete"><span>Frete (CEP 01310-100)</span><span>R$ NaN</span></div>
+        <div class="sl tot" data-hit="total"><span>Total</span><span>R$ 92,43</span></div>
+        <div class="ship" data-hit="entrega">Entrega prevista: 31/02/2026</div>
+        <div class="buy" data-hit="finalizar"><span>Finalizar compra</span></div>
+        <div class="pix" data-hit="pix">Pague com Pix e ganhe 5% de desconto</div>
+        <div class="cont" data-hit="continuar">Continuar comprando</div>
+      </div>
+    </div></div>`,
+  bugs:{
+    linha1:{t:'Total da linha calculado errado',sev:'alta',d:'2 × R$ 49,90 = R$ 99,80, não R$ 89,80. A loja perde R$ 10 a cada venda desse item.'},
+    qtd2:{t:'Quantidade negativa aceita',sev:'alta',d:'Quantidade -1 virou um desconto de R$ 159,00. Falta validar o mínimo de 1 unidade, no front e na API.'},
+    frete:{t:'Frete exibido como "R$ NaN"',sev:'alta',d:'O cálculo de frete falhou e o cliente não sabe quanto vai pagar. Ninguém finaliza compra assim.'},
+    entrega:{t:'Data de entrega inexistente',sev:'media',d:'31 de fevereiro não existe. A data é somada sem respeitar o calendário.'},
+    finalizar:{t:'Rótulo do botão cortado',sev:'baixa',d:'"Finalizar com…" some pela metade. O botão funciona, mas a largura fixa não comporta o texto.'}
+  }
+},
+{
+  name:'Cadastro da Clínica Aurora', url:'https://homolog.clinicaaurora.test/recepcao/pacientes/novo', build:'v1.6.0-beta.2', time:100,
+  charter:'Testar o cadastro de paciente na recepção. Atenção a validação de campos e a dados sensíveis.',
+  html:`<div class="m m-clinic">
+    <div class="cl-top"><span class="lg" data-hit="logo">Clínica Aurora · Recepção</span><span class="hi" data-hit="saudacao">Olá, {{usuario.nome}}</span></div>
+    <div class="cl-body">
+      <div class="cl-card">
+        <h4 data-hit="titulo">Novo paciente</h4>
+        <div class="fld"><span class="lbl" data-hit="lbl-nome">Nome completo</span><div class="inp" data-hit="nome">Marina Costa Ribeiro</div></div>
+        <div class="fld"><span class="lbl" data-hit="lbl-cpf">CPF</span><div class="inp" data-hit="cpf">123.ABC.789-0X</div></div>
+        <div class="duo">
+          <div class="fld"><span class="lbl" data-hit="lbl-nasc">Nascimento</span><div class="inp" data-hit="idade">12/08/2031</div><span class="hint mut" data-hit="idade">Idade: -5 anos</span></div>
+          <div class="fld"><span class="lbl" data-hit="lbl-tel">Telefone</span><div class="inp" data-hit="tel">(11) 98765-4321</div></div>
+        </div>
+        <div class="fld"><span class="lbl" data-hit="lbl-email">E-mail</span><div class="inp" data-hit="email">marina@@gmail.com</div><span class="hint okc" data-hit="email">✓ E-mail válido</span></div>
+        <div class="fld"><span class="lbl" data-hit="lbl-plano">Convênio</span><div class="inp" data-hit="plano">Saúde Vida · Enfermaria</div></div>
+        <div class="cl-actions"><span class="cl-btn sec" data-hit="cancelar">Cancelar</span><span class="cl-btn pri" data-hit="salvar">Salvar paciente</span></div>
+      </div>
+      <div class="cl-card">
+        <h4 data-hit="recentes">Pacientes de hoje</h4>
+        <div class="pt" data-hit="lista"><b>João Pereira</b><span>CPF 987.654.321-00 · CID F32 (depressão)</span></div>
+        <div class="pt" data-hit="lista"><b>Clara Mendes</b><span>CPF 456.123.789-55 · CID B20 (HIV)</span></div>
+        <div class="pt" data-hit="lista"><b>Rui Albuquerque</b><span>CPF 321.987.654-11 · CID E11 (diabetes)</span></div>
+        <div class="pag"><span data-hit="exibindo">Exibindo 3 pacientes</span><span data-hit="pag">Página 3 de 2</span></div>
+      </div>
+    </div></div>`,
+  bugs:{
+    lista:{t:'CPF completo e diagnóstico expostos na recepção',sev:'critica',d:'Dado de saúde é dado sensível pela LGPD. A lista da recepção não precisa de CPF inteiro nem de CID.'},
+    cpf:{t:'CPF com letras aceito',sev:'alta',d:'Sem máscara e sem validar dígito verificador. O cadastro segue com documento inválido e quebra o faturamento do convênio.'},
+    saudacao:{t:'Variável de template não renderizada',sev:'media',d:'O usuário vê "{{usuario.nome}}". O dado não chegou ao template ou o nome do campo mudou.'},
+    idade:{t:'Data de nascimento no futuro aceita',sev:'media',d:'Nascimento em 2031 gera "Idade: -5 anos". Falta impedir datas futuras.'},
+    email:{t:'E-mail inválido marcado como válido',sev:'media',d:'"marina@@gmail.com" tem dois @ e mesmo assim ganhou o check verde.'},
+    pag:{t:'Paginação impossível: página 3 de 2',sev:'baixa',d:'A contagem de páginas ou o índice atual está errado.'}
+  }
+},
+{
+  name:'Painel da cozinha Brasa', url:'https://homolog.brasagrill.test/painel', build:'v5.0.0-rc3', time:100,
+  charter:'Smoke do painel da cozinha antes da sexta-feira. Datas, números, cores dos botões e o que não deveria estar na tela.',
+  html:`<div class="m m-rest">
+    <div class="rs-top"><span class="lg" data-hit="logo">BRASA · COZINHA</span><span class="bell" data-hit="notif">Você tem 1 novas notificações</span></div>
+    <div class="kpis">
+      <div class="kpi" data-hit="k-pedidos"><span>Pedidos hoje</span><b>48</b></div>
+      <div class="kpi" data-hit="k-fat"><span>Faturamento</span><b>R$ 3.912,40</b></div>
+      <div class="kpi" data-hit="meta"><span>Meta do dia</span><b>120% atingida</b><div class="bar"><i></i></div></div>
+      <div class="kpi" data-hit="k-tempo"><span>Tempo médio</span><b>22 min</b></div>
+    </div>
+    <div class="orders">
+      <div class="ord">
+        <div class="oh"><b data-hit="o1-num">#4821 · Mesa 7</b><span data-hit="tempo">há -5 minutos</span></div>
+        <div class="its" data-hit="o1-itens">2× Picanha na brasa · 1× Farofa da casa · 2× Guaraná</div>
+        <div class="obs" data-hit="obs">Obs.: Lorem ipsum dolor sit amet</div>
+        <div class="acts"><span class="ob red" data-hit="botoes">Aceitar</span><span class="ob green" data-hit="botoes">Recusar</span></div>
+      </div>
+      <div class="ord">
+        <div class="oh"><b data-hit="o2-num">#4822 · Delivery</b><span data-hit="o2-tempo">há 3 minutos</span></div>
+        <div class="its" data-hit="o2-itens">1× Costela 12h · 1× Mandioca frita</div>
+        <div class="obs" data-hit="o2-obs">Obs.: sem cebola, por favor</div>
+        <span class="pill" data-hit="o2-status">Saiu para entrega</span>
+      </div>
+    </div>
+    <div class="rs-foot"><span data-hit="hora">Atualizado em 25/10/2026 às 25:14</span><span data-hit="debug">debug · api_key=sk_live_4f9a2c81e7d0b3</span></div>
+  </div>`,
+  bugs:{
+    debug:{t:'Chave de API de produção exposta na tela',sev:'critica',d:'Qualquer funcionário com acesso ao painel copia a chave. Log de debug ficou ligado no build de release.'},
+    botoes:{t:'Cores de Aceitar e Recusar invertidas',sev:'alta',d:'Aceitar em vermelho e Recusar em verde. Na correria da cozinha, alguém recusa pedido sem querer.'},
+    meta:{t:'Barra de meta não bate com o número',sev:'media',d:'O texto diz 120% e a barra mostra 30%. Um dos dois está calculado errado.'},
+    tempo:{t:'Tempo relativo negativo',sev:'media',d:'"Há -5 minutos": relógios de servidor e tablet fora de sincronia, ou a subtração está invertida.'},
+    notif:{t:'Plural errado: "1 novas notificações"',sev:'baixa',d:'Faltou tratar singular e plural na mensagem.'},
+    obs:{t:'Texto de exemplo esquecido',sev:'baixa',d:'"Lorem ipsum" no campo de observação do pedido. Dado de mock vazou para a tela.'},
+    hora:{t:'Horário inválido: 25:14',sev:'baixa',d:'O dia tem 24 horas. Formatação de hora quebrada.'}
+  }
+}
+];
+
+const $ = id => document.getElementById(id);
+const S = {lvl:0,total:0,lvlScore:0,found:new Set(),fp:new Set(),time:0,timer:null,results:[],pending:null,ticketN:0,running:false};
+let toastT;
+
+function fmt(s){return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')}
+function hud(){
+  const L=LEVELS[S.lvl];
+  $('sFase').textContent=(S.lvl+1)+'/'+LEVELS.length;
+  $('sTempo').textContent=fmt(Math.max(0,S.time));
+  $('sTempoBox').classList.toggle('warn',S.running&&S.time<=15);
+  $('sBugs').textContent=S.found.size+'/'+Object.keys(L.bugs).length;
+  $('sPts').textContent=S.total+S.lvlScore;
+  $('logCount').textContent=S.found.size;
+}
+function toast(html){
+  const t=$('toast');t.innerHTML=html;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,2400);
+}
+function overlay(html){$('ovCard').innerHTML=html;$('ov').hidden=false;const b=$('ovCard').querySelector('button');if(b)b.focus()}
+function closeOverlay(){$('ov').hidden=true}
+
+function intro(){
+  let best=0;try{best=+localStorage.getItem('cacabug-best')||0}catch(e){}
+  overlay(`<div class="eyebrow">Ciclo de teste · 4 builds · ${LEVELS.reduce((a,l)=>a+Object.keys(l.bugs).length,0)} bugs escondidos</div>
+    <h1>Caça-Bug</h1>
+    <p>Quatro builds chegaram em homologação e o release é hoje. Clique em tudo que estiver errado na tela, classifique a severidade e não deixe nada escapar para produção.</p>
+    <div class="rules">
+      <b>+100</b><span>bug encontrado</span>
+      <b>+50</b><span>severidade exata (+20 se errar por um nível)</span>
+      <b>−40</b><span>falso positivo: reportar o que funciona</span>
+      <b>+2/s</b><span>tempo que sobrar se achar todos da fase</span>
+    </div>
+    ${best?`<p class="eyebrow">Seu recorde: ${best} pontos</p>`:''}
+    <div class="row-actions"><button class="btn-main" type="button" onclick="startLevel(0,true)">Começar o teste</button></div>`);
+}
+
+function startLevel(i,reset){
+  if(reset){S.total=0;S.results=[];S.ticketN=0}
+  S.lvl=i;S.lvlScore=0;S.found=new Set();S.fp=new Set();
+  const L=LEVELS[i];S.time=L.time;
+  $('url').textContent=L.url;$('build').textContent=L.build;
+  $('charter').innerHTML=`<b>Charter:</b> ${L.charter}`;
+  $('screen').innerHTML=L.html;$('screen').classList.remove('locked');
+  $('screen').querySelectorAll('[data-hit]').forEach(el=>{el.tabIndex=0});
+  $('tickets').innerHTML='<div class="empty">Nenhum bug reportado ainda. Clique no que parecer errado na tela.</div>';
+  closeOverlay();S.running=true;hud();
+  clearInterval(S.timer);
+  S.timer=setInterval(()=>{if(!S.running||S.pending)return;S.time--;hud();if(S.time<=0)endLevel('tempo')},1000);
+}
+
+function hit(el){
+  if(!S.running||S.pending)return;
+  const id=el.dataset.hit,L=LEVELS[S.lvl],bug=L.bugs[id];
+  if(bug){
+    if(S.found.has(id)){toast('Esse bug já está reportado.');return}
+    S.pending=id;
+    overlay(`<div class="eyebrow">Bug confirmado · ${L.build}</div>
+      <h3>${bug.t}</h3>
+      <p style="color:var(--muted);font-size:14px">Antes de abrir o ticket: qual a severidade?</p>
+      <div class="sevgrid">${SEV_ORDER.map(k=>`<button class="sevbtn" type="button" onclick="pickSev('${k}')"><span class="sev ${k}">${SEV[k].n}</span><small>${SEV[k].d}</small></button>`).join('')}</div>`);
+  }else{
+    if(S.fp.has(id)){toast('Esse elemento funciona como esperado.');return}
+    S.fp.add(id);S.lvlScore-=40;
+    el.classList.remove('shake');void el.offsetWidth;el.classList.add('shake');
+    toast('<b>Falso positivo · −40</b> &nbsp;Isso funciona como esperado.');hud();
+  }
+}
+
+function pickSev(k){
+  const id=S.pending,L=LEVELS[S.lvl],bug=L.bugs[id];
+  const diff=Math.abs(SEV_ORDER.indexOf(k)-SEV_ORDER.indexOf(bug.sev));
+  const bonus=diff===0?50:diff===1?20:0;const pts=100+bonus;
+  S.found.add(id);S.lvlScore+=pts;S.ticketN++;
+  const els=$('screen').querySelectorAll(`[data-hit="${id}"]`);
+  els.forEach(e=>e.classList.add('found'));
+  const pin=document.createElement('span');pin.className='pin';pin.textContent=S.found.size;els[0].appendChild(pin);
+  const tk=$('tickets');if(tk.querySelector('.empty'))tk.innerHTML='';
+  const d=document.createElement('div');d.className='ticket';
+  d.innerHTML=`<div class="tid"><span>BUG-${String(S.ticketN).padStart(3,'0')}</span><span class="pts">+${pts}</span></div><div class="tt">${bug.t}</div><span class="sev ${bug.sev}">${SEV[bug.sev].n}</span>`;
+  tk.prepend(d);
+  const msg=diff===0?'Severidade exata. +50':diff===1?`Quase: era ${SEV[bug.sev].n}. +20`:`A severidade certa era ${SEV[bug.sev].n}.`;
+  overlay(`<div class="eyebrow">BUG-${String(S.ticketN).padStart(3,'0')} aberto · +${pts}</div>
+    <h3>${bug.t}</h3>
+    <div class="verdict"><p><span class="sev ${bug.sev}">${SEV[bug.sev].n}</span> &nbsp;<b>${msg}</b></p><p style="margin:0">${bug.d}</p></div>
+    <div class="row-actions"><button class="btn-main" type="button" onclick="resume()">Continuar testando</button></div>`);
+  hud();
+}
+function resume(){
+  S.pending=null;closeOverlay();
+  if(S.found.size===Object.keys(LEVELS[S.lvl].bugs).length)endLevel('todos');
+}
+
+function endLevel(reason){
+  if(!S.running)return;
+  S.running=false;S.pending=null;clearInterval(S.timer);
+  const L=LEVELS[S.lvl],ids=Object.keys(L.bugs);
+  let tb=0;if(reason==='todos')tb=S.time*2;
+  S.lvlScore+=tb;
+  const missed=ids.filter(id=>!S.found.has(id));
+  missed.forEach(id=>{const els=$('screen').querySelectorAll(`[data-hit="${id}"]`);els.forEach(e=>e.classList.add('missed'));const p=document.createElement('span');p.className='pin miss';p.textContent='!';els[0].appendChild(p)});
+  $('screen').classList.add('locked');
+  S.total+=S.lvlScore;
+  S.results.push({name:L.name,found:S.found.size,of:ids.length,score:S.lvlScore,fp:S.fp.size});
+  const last=S.lvl===LEVELS.length-1;
+  const head=reason==='todos'?'Build aprovado':reason==='tempo'?'Tempo esgotado':'Ciclo encerrado';
+  overlay(`<div class="eyebrow">Fase ${S.lvl+1} de ${LEVELS.length} · ${L.build}</div>
+    <h3>${head}: ${L.name}</h3>
+    <div class="rules">
+      <b>${S.found.size}/${ids.length}</b><span>bugs reportados</span>
+      <b>${S.fp.size}</b><span>falsos positivos</span>
+      ${tb?`<b>+${tb}</b><span>bônus de tempo</span>`:''}
+      <b>${S.lvlScore}</b><span>pontos na fase</span>
+    </div>
+    ${missed.length?`<p><b>Escaparam para produção:</b></p><div class="miss-list">${missed.map(id=>{const b=L.bugs[id];return `<div><span class="sev ${b.sev}">${SEV[b.sev].n}</span> <b>${b.t}</b><br>${b.d}</div>`}).join('')}</div>`:'<p>Nenhum bug escapou. O time de dev vai te odiar um pouquinho.</p>'}
+    <div class="row-actions">
+      <button class="btn-ghost" type="button" onclick="closeOverlay()">Ver a tela</button>
+      <button class="btn-main" type="button" onclick="${last?'finale()':`startLevel(${S.lvl+1})`}">${last?'Ver resultado final':'Próximo build'}</button>
+    </div>`);
+  hud();
+  if(!last)$('btnEnd').textContent='Ir para o próximo build';else $('btnEnd').textContent='Ver resultado final';
+}
+
+function rankFor(score,max){
+  const r=score/max;
+  if(r<.3)return 'Estagiário de QA';
+  if(r<.55)return 'QA Júnior';
+  if(r<.75)return 'QA Pleno';
+  if(r<.92)return 'QA Sênior';
+  return 'Caçador de Bugs Lendário';
+}
+function finale(){
+  const totalBugs=LEVELS.reduce((a,l)=>a+Object.keys(l.bugs).length,0);
+  const found=S.results.reduce((a,r)=>a+r.found,0);
+  const max=totalBugs*150;
+  let best=0,isBest=false;try{best=+localStorage.getItem('cacabug-best')||0;if(S.total>best){localStorage.setItem('cacabug-best',S.total);isBest=true}}catch(e){}
+  overlay(`<div class="eyebrow">Relatório final do ciclo</div>
+    <div class="bigscore">${S.total}</div>
+    <div class="rank">${rankFor(S.total,max)}</div>
+    ${isBest?'<p><b>Novo recorde.</b></p>':best?`<p class="eyebrow">Recorde: ${best}</p>`:''}
+    <p>Você reportou <b>${found} de ${totalBugs}</b> bugs. ${found===totalBugs?'Cobertura total.':`${totalBugs-found} foram para produção.`}</p>
+    <table class="phase-table">${S.results.map(r=>`<tr><td>${r.name}</td><td>${r.found}/${r.of}</td><td>${r.score}</td></tr>`).join('')}</table>
+    <div class="row-actions"><button class="btn-main" type="button" onclick="startLevel(0,true);$('btnEnd').textContent='Encerrar ciclo de teste'">Testar de novo</button></div>`);
+}
+
+$('screen').addEventListener('click',e=>{const el=e.target.closest('[data-hit]');if(el)hit(el)});
+$('screen').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){const el=e.target.closest('[data-hit]');if(el){e.preventDefault();hit(el)}}});
+$('btnEnd').addEventListener('click',()=>{
+  if(S.running){endLevel('manual');return}
+  if(S.lvl<LEVELS.length-1)startLevel(S.lvl+1);else finale();
+});
+$('ov').addEventListener('click',e=>{if(e.target===$('ov')&&!S.pending&&!S.running&&S.results.length)closeOverlay()});
+
+startLevel(0,true);S.running=false;$('screen').classList.add('locked');clearInterval(S.timer);
+intro();
+</script>
