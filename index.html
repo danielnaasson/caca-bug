@@ -380,7 +380,7 @@ function hud(){
   $('sTempo').textContent=fmt(Math.max(0,S.time));
   $('sTempoBox').classList.toggle('warn',S.running&&S.time<=15);
   $('sBugs').textContent=S.found.size+'/'+Object.keys(L.bugs).length;
-  $('sPts').textContent=S.total+S.lvlScore;
+  $('sPts').textContent=S.total+(S.running?S.lvlScore:0);
   $('logCount').textContent=S.found.size;
 }
 function toast(html){
@@ -410,6 +410,7 @@ function startLevel(i,reset){
   const L=LEVELS[i];S.time=L.time;
   $('url').textContent=L.url;$('build').textContent=L.build;
   $('charter').innerHTML=`<b>Charter:</b> ${L.charter}`;
+  $('btnEnd').textContent='Encerrar ciclo de teste';
   $('screen').innerHTML=L.html;$('screen').classList.remove('locked');
   $('screen').querySelectorAll('[data-hit]').forEach(el=>{el.tabIndex=0});
   $('tickets').innerHTML='<div class="empty">Nenhum bug reportado ainda. Clique no que parecer errado na tela.</div>';
